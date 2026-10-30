@@ -1,3 +1,65 @@
+!pip install roboflow
+
+from roboflow import Roboflow
+rf = Roboflow(api_key="YnpMrUPzqvCFRBQ1q51g")
+project = rf.workspace("-irjog").project("box-form-crrection")
+version = project.version(1)
+dataset = version.download("yolov8")
+
+### 다운로드한 데이터셋을 YOLOv8 모델을 학습(Train)  ###
+
+# os, yaml: 파일 경로를 다루고 설정 파일(data.yaml)을 수정하기 위한 기본 라이브러리
+import os
+import yaml
+
+#윈도우(Windows)나 맥(Mac) 환경에서 머신러닝 라이브러리가 충돌하여 프로그램이 강제 종료되는 에러(OpenMP 에러)를 방지하기 위한 안전장치
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
+#OLOv8 모델을 사용하기 위한 핵심 모듈 불러옴
+from ultralytics import YOLO
+
+
+
+## 학습 환경 및 경로 설정 ##
+def main():
+    #yolov8n.pt: 사전 학습된 모델을 불러옴
+    model = YOLO("yolov8n.pt")
+
+    #데이터 경로 자동 수정: 코드가 실행되는 현재 폴더(current_dir)를 기준으로 data.yaml 파일의 내용을 수정
+    current_dir = os.getcwd()
+    yaml_path = os.path.join(current_dir, "data.yaml")
+
+    if os.path.exists(yaml_path):
+        with open(yaml_path, 'r', encoding='utf-8') as f:
+            yaml_data = yaml.safe_load(f)
+        yaml_data['path'] = current_dir
+        yaml_data['train'] = 'train/images'  #학습용(train) 데이터와 검증용(val) 데이터를 모두 'train/images'
+        yaml_data['val'] = 'train/images'
+
+        #지정한 경로(yaml_path)에 한글이 깨지지 않는 파일(utf-8)을 쓰기 모드(w)로 열고
+        #파이썬 데이터(yaml_data)를 안전한 yaml 형식(safe_dump)으로 기록
+        with open(yaml_path, 'w', encoding='utf-8') as f:
+            yaml.safe_dump(yaml_data, f)
+
+
+    ## 모델 학습(train)  ##
+    model.model.args['verbose'] = False   #화면에 출력되는 복잡한 학습 로그들을 최소화하여 깔끔하게 보여줌
+
+    model.train(
+        data=yaml_path,
+        epochs=30,    #데이터를 30번 반복 학습
+        imgsz=320,    #이미지 크기를 320x320 픽셀
+        batch=4,      #한 번에 4장의 이미지만 묶어 처리 (메모리가 부족한 환경에 적합)
+        workers=0,    #데이터를 불러올 때 다중 처리(멀티프로세싱)를 사용하지 않음. 윈도우 환경에서 발생하는 에러를 막기 위한 필수 설정
+        device='cpu', #래픽카드(GPU)를 사용하지 않고 오직 CPU만으로 학습을 진행
+        val=False,    #매 에포크마다 진행하는 성능 평가(검증) 과정을 생략. 학습 속도를 극대화하기 위한 설정
+        name='train', #학습 결과가 저장되는 폴더(runs/detect/train)가 이미 존재해도 오류를 내지 않고 덮어쓰거나 이어서 씀
+        exist_ok=True
+    )
+
+if __name__ == "__main__":
+    main()
+
 ### best.pt 파일을 사용하여 웹캠으로 실시간 객체 탐지  ###
 
 import os
